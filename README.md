@@ -2,7 +2,7 @@
  NexStar serial port message test
  ================================
 
-This program test NexStar astronomical telescope stand drive commands.
+This program test NexStar astronomical telescope stand AUX/PC serial port drive commands.
 
 Ref(s):
 
@@ -27,3 +27,5 @@ Keyboard controls:
   - "Esc" and '0' keys stop movement
   - Ctrl-C is application exit
 
+There are two alternative serial port handling source codes
+  - Current test we use CSerialPort.c/h sources
