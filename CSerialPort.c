@@ -51,6 +51,7 @@ PORT OpenPort(int idx)
 
 	return hComm;
 }
+
 void ClosePort(PORT com_port)
 {
 	CloseHandle(com_port);
@@ -174,5 +175,6 @@ int ReciveData(PORT com_port, char * data,int len)
 	if (Status == FALSE) {
 		return FALSE;
 	}
-	return TRUE;
+//	return TRUE;
+	return NoBytesRead;
 }

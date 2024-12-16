@@ -101,13 +101,13 @@ void set_speed( PORT com_port, uint8_t axis, int speed )
     printf("TX: ");
     dump( buffer, len );
 
-//  SendData( com_port, (char*)buffer, len );
+    SendData( com_port, (char*)buffer, len );
 
-    Sleep( 100 ); // Delay [ms] between multible commands
+    Sleep( 100 ); // Delay [ms] between multiple commands
 }
 
 
-
+// Test to monitor: Do we get any reply messages?
 DWORD WINAPI ThreadFunc(void* data)
 {
     // Do stuff.  This will be the first function called on the new thread.
@@ -118,7 +118,7 @@ DWORD WINAPI ThreadFunc(void* data)
     {
         uint8_t databuffer[80];
 
-        // Recive character data that have been sent throw the com_port.
+        // Recive character data that have been sent throw the com port.
         int len = ReciveData( speed.port, (char*)databuffer, sizeof(databuffer) );
 
         if ( len > 0 ) {
@@ -126,7 +126,7 @@ DWORD WINAPI ThreadFunc(void* data)
             dump( databuffer, len );
         }
     }
-    printf("exit  RX\n");  // ReciveData() is blocking, newer arrive here
+    printf("exit  RX\n");  // ReciveData() is blocking, we newer arrive here
     return 0;
 }
 
@@ -190,7 +190,10 @@ void userif( void )
 
 int main( int argc, char *argv[] )
 {
-    int idx = 7, rate = CP_BOUD_RATE_19200;
+    HANDLE thread = NULL;
+
+    int idx  = 7;
+    int rate = CP_BOUD_RATE_19200;
 
     #if  0
     if ( argc <= 1) {
@@ -213,14 +216,14 @@ int main( int argc, char *argv[] )
     SetPortStopBits(speed.port, CP_STOP_BITS_TWO);
     SetPortParity(  speed.port, CP_PARITY_NOPARITY);
 
-//  EscapeCommFunction( speed.port, CLRRTS );  // CLRRTS / SETRTS
+    EscapeCommFunction( speed.port, SETRTS );  // CLRRTS / SETRTS
 
-    HANDLE thread = CreateThread( NULL, 0, ThreadFunc, NULL, 0, NULL );
-
+//  thread = CreateThread( NULL, 0, ThreadFunc, NULL, 0, NULL );
     userif();
 
-    TerminateThread( thread, 0 );  // Force stop RS thread
-
-    ClosePort(speed.port);
+    if ( thread ) {
+        TerminateThread( thread, 0 );  // Force stop RX thread
+    }
+    ClosePort( speed.port );
     return 0;
 }
