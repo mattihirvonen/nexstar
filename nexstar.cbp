@@ -31,9 +31,7 @@
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
-		<Unit filename=".gitignore.c">
-			<Option compilerVar="CC" />
-		</Unit>
+		<Unit filename=".gitignore" />
 		<Unit filename="CSerialPort.c">
 			<Option compilerVar="CC" />
 		</Unit>
