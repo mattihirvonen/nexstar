@@ -101,7 +101,7 @@ void set_speed( PORT com_port, uint8_t axis, int speed )
     printf("TX: ");
     dump( buffer, len );
 
-    SendData( com_port, (char*)buffer, len );
+//  SendData( com_port, (char*)buffer, len );
 
     Sleep( 100 ); // Delay [ms] between multible commands
 }
@@ -113,6 +113,7 @@ DWORD WINAPI ThreadFunc(void* data)
     // Do stuff.  This will be the first function called on the new thread.
     // When this function returns, the thread goes away.  See MSDN for more details.
 
+    printf("start RX\n");
     while ( speed.run )
     {
         uint8_t databuffer[80];
@@ -125,6 +126,7 @@ DWORD WINAPI ThreadFunc(void* data)
             dump( databuffer, len );
         }
     }
+    printf("exit  RX\n");  // ReciveData() is blocking, newer arrive here
     return 0;
 }
 
@@ -140,6 +142,8 @@ DWORD WINAPI ThreadFunc(void* data)
 
 void userif( void )
 {
+    printf("start UI\n");
+
     speed.run = 1;
     speed.azm = 0;
     speed.alt = 0;
@@ -153,7 +157,7 @@ void userif( void )
             set_speed( speed.port, ALT, 0 );
             set_speed( speed.port, AZM, 0 );
             if ( ch == CtrlC ) {
-                 speed.run = 0;
+                 break;
             }
         }
         else if ( ch == 0xe0 )
@@ -178,20 +182,24 @@ void userif( void )
             }
         }
     }
+    speed.run = 0;
+    printf("exit  UI\n");
 }
 
 //--------------------------------------------------------
 
 int main( int argc, char *argv[] )
 {
-    int idx, rate = CP_BOUD_RATE_19200;
+    int idx = 7, rate = CP_BOUD_RATE_19200;
 
+    #if  0
     if ( argc <= 1) {
         printf("ERROR: Require COM serial port number (example 20)\n");
         return  1;
     }
-    idx        = atoi( argv[1] );
-    speed.port = OpenPort(idx);
+    idx = atoi( argv[1] );
+    #endif
+    speed.port = OpenPort( idx );
 
     if ( speed.port == NULL ) {
         printf("ERROR: Can not open COM port %d\n", idx);
@@ -205,11 +213,13 @@ int main( int argc, char *argv[] )
     SetPortStopBits(speed.port, CP_STOP_BITS_TWO);
     SetPortParity(  speed.port, CP_PARITY_NOPARITY);
 
-    EscapeCommFunction( speed.port, SETRTS );  // CLRRTS / SETRTS
+//  EscapeCommFunction( speed.port, CLRRTS );  // CLRRTS / SETRTS
 
-    /* HANDLE thread = */ CreateThread( NULL, 0, ThreadFunc, NULL, 0, NULL );
+    HANDLE thread = CreateThread( NULL, 0, ThreadFunc, NULL, 0, NULL );
 
     userif();
+
+    TerminateThread( thread, 0 );  // Force stop RS thread
 
     ClosePort(speed.port);
     return 0;

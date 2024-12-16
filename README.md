@@ -13,6 +13,7 @@ Ref(s):
   - https://github.com/ABasharEter/CSerialPort/tree/master/CSerialPort
   - https://www.pololu.com/docs/0J73/15.6
   - https://stackoverflow.com/questions/1981459/using-threads-in-c-on-windows-simple-example
+  - https://learn.microsoft.com/en-us/windows/win32/procthread/process-and-thread-functions
 
 Application can build with CodeBlocks (Windows, MinGW system)
   - https://www.codeblocks.org/
