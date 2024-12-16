@@ -1,5 +1,5 @@
 
- Nexstar serial port message test
+ NexStar serial port message test
  ================================
 
 This program test NexStar astronomical telescope stand drive commands.
@@ -14,4 +14,15 @@ Ref(s):
   - https://www.pololu.com/docs/0J73/15.6
   - https://stackoverflow.com/questions/1981459/using-threads-in-c-on-windows-simple-example
 
+Application can build with CodeBlocks (Windows, MinGW system)
+  - https://www.codeblocks.org/
+
+Example command with com port:  COM20
+
+  - nexstar.exe 20
+
+Keyboard controls:
+  - drive speed can control with cursor arrow keys from keyboard
+  - "Esc" and '0' keys stop movement
+  - Ctrl-C is application exit
 
