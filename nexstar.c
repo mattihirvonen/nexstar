@@ -1,3 +1,9 @@
+// File:        nexstar.c
+// Author:      Matti Hirvonen
+// Description:
+//   Test PC/AUX serial port drive commands with
+//   NexStar astronomical telescope base stand
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <windows.h>
@@ -6,16 +12,6 @@
 
 #include "serialport.h"
 #include "CSerialPort.h"    // We use this source
-
-#define PREAMBLE  0x3b
-#define MAINBOARD 0x01
-#define SOURCE    0x03
-#define HANDC     0x04
-#define AZM       0x10
-#define ALT       0x11
-#define GPS       0xb0
-#define POSITIVE  0x24
-#define NEGATIVE  0x25
 
 //--------------------------------------------------------
 // Some test(s):
@@ -32,15 +28,18 @@ void dump( uint8_t *buf, int len )
 }
 
 //--------------------------------------------------------
-// Low level message functions
+// These low level message functions are prototypes
+// for embedded joystick controller
 
-struct speed_t
-{
-    int  run;
-    PORT port;    // Serial port handle
-    int  azm;
-    int  alt;
-} speed;
+#define PREAMBLE     0x3b
+#define MAINBOARD    0x01
+#define SOURCE       0x03   // Use this as AUX/PC source "address/device"
+#define HANDCONTROL  0x04
+#define AZM          0x10
+#define ALT          0x11
+#define GPS          0xb0
+#define POSITIVE     0x24
+#define NEGATIVE     0x25
 
 
 static uint8_t csum8( uint8_t *cmd, int len )
@@ -78,6 +77,7 @@ static int mk_AUX_msg( uint8_t *buffer, uint8_t source, uint8_t destination, uin
 
 
 // Axis is: AZM or ALT
+// Valid speed range is:  -9 ... +9, 0 is stop
 int mk_AUX_speed( uint8_t *buffer, int axis, int speed )
 {
     uint8_t cmd[8];
@@ -92,6 +92,8 @@ int mk_AUX_speed( uint8_t *buffer, int axis, int speed )
 }
 
 
+// Axis is: AZM or ALT
+// Valid speed range is:  -9 ... +9, 0 is stop
 void set_speed( PORT com_port, uint8_t axis, int speed )
 {
     uint8_t buffer[16];
@@ -107,19 +109,102 @@ void set_speed( PORT com_port, uint8_t axis, int speed )
 }
 
 
-// Test to monitor: Do we get any reply messages?
-DWORD WINAPI ThreadFunc(void* data)
+// Stop move and zero speed variables
+void set_speed_stop( PORT com_port, int *speed_azm, int *speed_alt )
 {
+    *speed_azm = 0;
+    *speed_alt = 0;
+    set_speed( com_port, ALT, *speed_alt );
+    set_speed( com_port, AZM, *speed_azm );
+}
+
+//--------------------------------------------------------
+// PC "User Interface"
+
+#define  CtrlC     0x03
+#define  KEYUP     0x48
+#define  KEYDN     0x50
+#define  KEYLEFT   0x4b
+#define  KEYRIGHT  0x4d
+#define  KEYESC    0x1b
+
+
+typedef struct
+{
+   int  run;     // "Boolean" run flag
+   PORT port;    // Serial port handle
+   int  azm;     // Azimuth  "rotation" speed
+   int  alt;     // Altitude "tilt"     speed
+} speed_t;
+
+
+void userif( speed_t *speed )
+{
+    printf("start UI\n");
+
+    speed->run = 1;
+    speed->azm = 0;
+    speed->alt = 0;
+
+    while ( speed->run )
+    {
+        uint8_t ch = getch();
+
+        if ( (ch == KEYESC) || (ch == '0') || (ch == CtrlC) )
+        {
+            set_speed_stop( speed->port, &speed->azm, &speed->alt );
+            if ( ch == CtrlC ) {
+                 speed->run = 0;
+                 break;
+            }
+        }
+        // Cursor arrow and function keys are two character sequence(s)
+        else if ( ch == 0xe0 )
+        {
+            ch = getch();
+
+            if ( ch == KEYUP ) {
+                speed->alt = check_valid_speed( ++speed->alt );
+                set_speed( speed->port, ALT, speed->alt);
+            }
+            if ( ch == KEYDN ) {
+                speed->alt = check_valid_speed( --speed->alt );
+                set_speed( speed->port, ALT, speed->alt);
+            }
+            if ( ch == KEYRIGHT ) {
+                speed->azm = check_valid_speed( ++speed->azm );
+                set_speed( speed->port, AZM, speed->azm);
+            }
+            if ( ch == KEYLEFT ) {
+                speed->azm = check_valid_speed( --speed->azm );
+                set_speed( speed->port, AZM, speed->azm);
+            }
+        }
+    }
+    printf("exit  UI\n");
+}
+
+//--------------------------------------------------------
+// PC open and configure serial port
+
+// Test to monitor: Do we get any reply messages?
+// Unfortunately this function can not use parallel/concurrent
+// with keyboard scan and "SendData()" function.
+// ReciveData() function blocks also SendData() operation !!!
+DWORD WINAPI ThreadRX( void* data )
+{
+    speed_t *speed = data;
+
     // Do stuff.  This will be the first function called on the new thread.
     // When this function returns, the thread goes away.  See MSDN for more details.
 
     printf("start RX\n");
-    while ( speed.run )
+    while ( speed->run )
     {
         uint8_t databuffer[80];
 
         // Recive character data that have been sent throw the com port.
-        int len = ReciveData( speed.port, (char*)databuffer, sizeof(databuffer) );
+        int len = ReciveData( speed->port, (char*)databuffer, sizeof(databuffer) );
 
         if ( len > 0 ) {
             printf("RX: ");
@@ -130,86 +215,31 @@ DWORD WINAPI ThreadFunc(void* data)
     return 0;
 }
 
-//--------------------------------------------------------
-
-#define CtrlC     0x03
-#define KEYUP     0x48
-#define KEYDN     0x50
-#define KEYLEFT   0x4b
-#define KEYRIGHT  0x4d
-#define KEYESC    0x1b
-
-
-void userif( void )
-{
-    printf("start UI\n");
-
-    speed.run = 1;
-    speed.azm = 0;
-    speed.alt = 0;
-
-    while ( speed.run )
-    {
-        uint8_t ch = getch();
-
-        if ( (ch == KEYESC) || (ch == '0') || (ch == CtrlC) )
-        {
-            set_speed( speed.port, ALT, 0 );
-            set_speed( speed.port, AZM, 0 );
-            if ( ch == CtrlC ) {
-                 break;
-            }
-        }
-        else if ( ch == 0xe0 )
-        {
-            ch = getch();
-
-            if ( ch == KEYUP ) {
-                speed.alt = check_valid_speed( ++speed.alt );
-                set_speed( speed.port, ALT, speed.alt);
-            }
-            if ( ch == KEYDN ) {
-                speed.alt = check_valid_speed( --speed.alt );
-                set_speed( speed.port, ALT, speed.alt);
-            }
-            if ( ch == KEYRIGHT ) {
-                speed.azm = check_valid_speed( ++speed.azm );
-                set_speed( speed.port, AZM, speed.azm);
-            }
-            if ( ch == KEYLEFT ) {
-                speed.azm = check_valid_speed( --speed.azm );
-                set_speed( speed.port, AZM, speed.azm);
-            }
-        }
-    }
-    speed.run = 0;
-    printf("exit  UI\n");
-}
-
-//--------------------------------------------------------
 
 int main( int argc, char *argv[] )
 {
-    HANDLE thread = NULL;
+    HANDLE   thread = NULL;
+    speed_t  speed;
 
-    int idx  = 7;
+    int idx  = 7;                     // Default is COM7
     int rate = CP_BOUD_RATE_19200;
 
-    #if  0
     if ( argc <= 1) {
-        printf("ERROR: Require COM serial port number (example 20)\n");
-        return  1;
+        printf("ERROR: Require COM serial port number (example: 20)\n");
+//      return  1;
     }
-    idx = atoi( argv[1] );
-    #endif
+    if ( argc >= 2 ) {
+        idx = atoi( argv[1] );
+    }
+    if ( argc >= 3 ) {
+        rate = CP_BOUD_RATE_9600;
+    }
+
     speed.port = OpenPort( idx );
 
     if ( speed.port == NULL ) {
         printf("ERROR: Can not open COM port %d\n", idx);
         return 1;
-    }
-    if ( argc > 2 ) {
-        rate = CP_BOUD_RATE_9600;
     }
     SetPortBoudRate(speed.port, rate);
     SetPortDataBits(speed.port, CP_DATA_BITS_8);
@@ -218,8 +248,8 @@ int main( int argc, char *argv[] )
 
     EscapeCommFunction( speed.port, SETRTS );  // CLRRTS / SETRTS
 
-//  thread = CreateThread( NULL, 0, ThreadFunc, NULL, 0, NULL );
-    userif();
+//  thread = CreateThread( NULL, 0, ThreadRX, &speed, 0, NULL );
+    userif( &speed );
 
     if ( thread ) {
         TerminateThread( thread, 0 );  // Force stop RX thread
